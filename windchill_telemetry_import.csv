@@ -1,0 +1,7 @@
+ImportSheetType=EIGENSTATE
+# Comments: Forensic lock telemetry for 2026 Epoch
+# Node: P01 Kinetic Calibration
+# Logic: Hausdorff Drift scanning
+# Audit: ASIL D Certified
+tick_id,state,load,posture,attention,causality,q_trigger,reason
+tick_0001,STABLE,0.8123,0.9971,0.4420,0.3019,TRUE,"Manifold sealed at S2 knuckle"
