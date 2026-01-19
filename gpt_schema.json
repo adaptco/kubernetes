@@ -1,0 +1,44 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Qube Simulation Agent",
+        "description": "API for running the Qube Ecosystem Simulation.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://<YOUR_NGROK_URL>.ngrok-free.app",
+            "description": "Local Qube Agent Tunnel"
+        }
+    ],
+    "paths": {
+        "/simulate": {
+            "post": {
+                "operationId": "runSimulation",
+                "summary": "Run the Qube Simulation",
+                "description": "Executes the Qube Ecosystem simulation (Qubes OS, 3D Engine, Apps) and returns the logs.",
+                "responses": {
+                    "200": {
+                        "description": "Simulation completed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "output": {
+                                            "type": "string",
+                                            "description": "The console output logs from the simulation."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
