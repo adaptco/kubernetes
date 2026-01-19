@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "Qube API Server",
   "main": "QubeApi.js",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
   "scripts": {
     "build": "tsc",
+    "watch": "tsc -w",
     "start": "node QubeApi.js",
     "test": "jest"
   },
