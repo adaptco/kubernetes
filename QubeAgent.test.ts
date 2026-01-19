@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 
 import { QubeAgent } from './QubeAgent';
 import { EigenstateLogger } from './eigenstate_logger';
@@ -47,7 +48,7 @@ describe('QubeAgent', () => {
     describe('runSimulation', () => {
         it('should run a simulation, calling execute and getFeedback on each entity', async () => {
             // We spy on the console.log to suppress output during tests
-            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
 
             await agent.runSimulation(0); // use 0ms duration for speed
 
@@ -72,7 +73,7 @@ describe('QubeAgent', () => {
                 true,
                 'All Qube entities simulated.'
             );
-            
+
             // Check that entity simulation logs were called
             expect(mockLog).toHaveBeenCalledWith(expect.stringMatching(/entity_sim_qubes_os/), 'ACTIVE', expect.any(Object), false, expect.any(String));
             expect(mockLog).toHaveBeenCalledWith(expect.stringMatching(/entity_sim_qube_3d_engine/), 'ACTIVE', expect.any(Object), false, expect.any(String));
@@ -84,7 +85,7 @@ describe('QubeAgent', () => {
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Simulating Entity: Qubes OS"));
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Simulating Entity: Qube (3D Engine)"));
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Simulating Entity: Qube Apps Solutions"));
-            
+
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Feedback Analysis:"));
 
             // Restore the console
@@ -92,7 +93,7 @@ describe('QubeAgent', () => {
         });
 
         it('should use the provided duration for delays', async () => {
-            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
             const duration = 10; // 10ms
             const startTime = Date.now();
             await agent.runSimulation(duration);
@@ -102,7 +103,7 @@ describe('QubeAgent', () => {
             // But they are awaited with Promise.all, so the total duration is roughly the duration of one.
             // Since we have 3 entities, and we use await new Promise for each, it should be at least `duration`.
             expect(endTime - startTime).toBeGreaterThanOrEqual(duration);
-            
+
             consoleSpy.mockRestore();
         });
     });

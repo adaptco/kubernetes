@@ -24,7 +24,7 @@
                 "<node_internals>/**",
                 "${workspaceFolder}/node_modules/**/*.js"
             ],
-            "program": "${workspaceFolder}\\app.ts",
+            "program": "${workspaceFolder}\\QubeApi.ts",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
