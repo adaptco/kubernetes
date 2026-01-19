@@ -100,8 +100,7 @@ exports.QubeAgent = QubeAgent;
 // Allow direct execution if run as script
 if (require.main === module) {
     // This block is for direct execution and should not be part of the API.
-    // The API will call runSimulation directly.
-    // const agent = new QubeAgent();
-    // agent.runSimulation().catch(console.error);
-    console.log("QubeAgent.ts is designed to be imported as a module, not run directly.");
+    const agent = new QubeAgent();
+    agent.runSimulation().catch(console.error);
+    // console.log("QubeAgent.ts is designed to be imported as a module, not run directly.");
 }
