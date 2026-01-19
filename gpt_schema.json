@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "https://<YOUR_NGROK_URL>.ngrok-free.app",
+            "url": "https://INSERT_YOUR_NGROK_ID_HERE.ngrok-free.app",
             "description": "Local Qube Agent Tunnel"
         }
     ],
@@ -17,6 +17,22 @@
                 "operationId": "runSimulation",
                 "summary": "Run the Qube Simulation",
                 "description": "Executes the Qube Ecosystem simulation (Qubes OS, 3D Engine, Apps) and returns the logs.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "duration": {
+                                        "type": "integer",
+                                        "description": "Simulation duration in milliseconds per entity.",
+                                        "default": 500
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Simulation completed successfully",

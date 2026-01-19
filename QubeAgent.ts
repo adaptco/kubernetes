@@ -1,5 +1,5 @@
 
-import { EigenstateLogger } from '../eigenstate_logger';
+import { EigenstateLogger } from './eigenstate_logger';
 
 // Interface for what defines a Qube Runtime Environment
 interface RuntimeEnvironment {
@@ -82,11 +82,11 @@ export class QubeAgent {
     /**
      * Runs a comprehensive simulation of the Qube ecosystem.
      */
-    public async runSimulation() {
+    public async runSimulation(durationMs: number = 500) {
         console.log(`Initializing Qube Agent... Motto: "${this.motto}"`);
         this.logger.log('qube_init', 'STARTING', { load: 0.1, posture: 1.0, attention: 1.0, causality: 0.0 }, true, 'Qube Agent Startup');
 
-        for (const entity of this.entities) {
+        const simulationPromises = this.entities.map(async (entity) => {
             console.log(`\n--- Simulating Entity: ${entity.name} ---`);
             console.log(`Description: ${entity.description}`);
             console.log(`Target Audience: ${entity.targetAudience.join(', ')}`);
@@ -112,8 +112,10 @@ export class QubeAgent {
             );
 
             console.log(`Feedback Analysis: ${entity.getFeedback()}`);
-            await new Promise(resolve => setTimeout(resolve, 500)); // slight delay for effect
-        }
+            await new Promise(resolve => setTimeout(resolve, durationMs)); // slight delay for effect
+        });
+
+        await Promise.all(simulationPromises);
 
         console.log("\n--- Simulation Complete ---");
         this.logger.log('qube_sim_end', 'COMPLETE', { load: 0.0, posture: 1.0, attention: 0.0, causality: 1.0 }, true, 'All Qube entities simulated.');

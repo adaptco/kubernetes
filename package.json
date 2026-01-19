@@ -1,0 +1,14 @@
+{
+  "name": "qube-api",
+  "version": "1.0.0",
+  "description": "Qube API Server",
+  "main": "QubeApi.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node QubeApi.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}
