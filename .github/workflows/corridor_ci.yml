@@ -1,0 +1,59 @@
+name: CAM Corridor Diff
+
+on:
+  push:
+    paths:
+      - "parts/**.cad"
+      - "scripts/**.py"
+  pull_request:
+    paths:
+      - "parts/**.cad"
+      - "scripts/**.py"
+
+jobs:
+  cam-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CadQuery + deps
+        run: |
+          pip install cadquery
+
+      - name: Run CAM Sandbox
+        run: |
+          python scripts/cam_runner.py \
+            --input parts/current.cad \
+            --output receipts/latest/
+
+      - name: Run Diff Against Golden Master
+        run: |
+          python scripts/cam_receipt_diff.py \
+            receipts/golden/receipt.json \
+            receipts/latest/receipt.json \
+            > diff_report.json
+
+      - name: Upload Diff Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cam-diff-report
+          path: diff_report.json
+
+      - name: Fail on Regression
+        run: |
+          python - << 'EOF'
+          import json
+          r = json.load(open("diff_report.json"))
+          if r["causal_summary"]:
+              print("Regression detected:")
+              print(json.dumps(r, indent=2))
+              exit(1)
+          print("No regression detected.")
+          EOF

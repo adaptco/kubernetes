@@ -1,0 +1,25 @@
+
+{
+  "metadata": {
+    "source_file": "golden.cad",
+    "generated_at": "2026-01-18T12:00:00Z",
+    "cad_hash": "mock_hash_golden"
+  },
+  "anchors": {
+    "mounting_hole_1": {
+      "x": 10.0,
+      "y": 20.0,
+      "z": 0.0
+    },
+    "mounting_hole_2": {
+      "x": 50.0,
+      "y": 20.0,
+      "z": 0.0
+    },
+    "center_point": {
+      "x": 30.0,
+      "y": 30.0,
+      "z": 15.0
+    }
+  }
+}

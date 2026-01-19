@@ -86,6 +86,9 @@ export class QubeAgent {
         console.log(`Initializing Qube Agent... Motto: "${this.motto}"`);
         this.logger.log('qube_init', 'STARTING', { load: 0.1, posture: 1.0, attention: 1.0, causality: 0.0 }, true, 'Qube Agent Startup');
 
+        // Introduce a delay before starting the simulation to allow for initialization
+        await new Promise(resolve => setTimeout(resolve, durationMs));
+        this.logger.log('qube_sim_start', 'RUNNING', { load: 0.5, posture: 0.8, attention: 0.7, causality: 0.2 }, false, 'Qube simulation started');
         const simulationPromises = this.entities.map(async (entity) => {
             console.log(`\n--- Simulating Entity: ${entity.name} ---`);
             console.log(`Description: ${entity.description}`);

@@ -5,7 +5,8 @@
   "main": "QubeApi.js",
   "scripts": {
     "build": "tsc",
-    "start": "node QubeApi.js"
+    "start": "node QubeApi.js",
+    "test": "jest"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
