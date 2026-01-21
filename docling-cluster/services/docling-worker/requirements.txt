@@ -1,4 +1,4 @@
-celery[redis]>=5.3.0
+rq>=1.15.0
 docling>=1.0.0
 pydantic>=2.0
 redis>=4.6.0

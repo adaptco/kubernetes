@@ -14,14 +14,14 @@ class ChunkerParams(BaseModel):
     overlap: int = 60
 
 
-class ChunkerInfo(BaseModel):
+class Chunker(BaseModel):
     """Information about the chunker used."""
     version: str = "chunk.v1"
     method: Literal["block+window", "sentence", "paragraph", "fixed"] = "block+window"
     params: ChunkerParams = Field(default_factory=ChunkerParams)
 
 
-class EmbeddingInfo(BaseModel):
+class Embedding(BaseModel):
     """Information about the embedding model and normalization."""
     framework: Literal["pytorch", "jax"] = "pytorch"
     model_id: str
@@ -31,7 +31,7 @@ class EmbeddingInfo(BaseModel):
     vector: list[float]
 
 
-class ProvenanceInfo(BaseModel):
+class Provenance(BaseModel):
     """Provenance tracking back to source blocks."""
     source_block_refs: list[str]  # Format: "p{page}:b{block}"
 
@@ -39,7 +39,7 @@ class ProvenanceInfo(BaseModel):
 class IntegrityBlock(BaseModel):
     """Hash-chain integrity information."""
     sha256_canonical: str = Field(..., pattern=r"^sha256:[a-f0-9]{64}$")
-    prev_ledger_hash: str = Field(..., pattern=r"^sha256:[a-f0-9]{64}$")
+    prev_ledger_hash: str | None = Field(None, pattern=r"^sha256:[a-f0-9]{64}$")
 
 
 class ChunkEmbeddingV1(BaseModel):
@@ -52,9 +52,10 @@ class ChunkEmbeddingV1(BaseModel):
     schema_: Literal["chunk.embedding.v1"] = Field("chunk.embedding.v1", alias="schema")
     doc_id: str = Field(..., pattern=r"^sha256:[a-f0-9]{64}$")
     chunk_id: str = Field(..., pattern=r"^sha256:[a-f0-9]{64}$")
-    chunker: ChunkerInfo = Field(default_factory=ChunkerInfo)
-    embedding: EmbeddingInfo
-    provenance: ProvenanceInfo
-    integrity: IntegrityBlock
+    chunk_text: str  # Added as requested
+    chunker: Chunker = Field(default_factory=Chunker)
+    embedding: Embedding
+    provenance: Provenance
+    integrity: IntegrityBlock | None = None  # Make optional for initial creation
 
     model_config = {"populate_by_name": True}

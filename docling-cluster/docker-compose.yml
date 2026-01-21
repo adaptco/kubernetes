@@ -39,7 +39,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       redis:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
       context: .
       dockerfile: ./services/docling-worker/Dockerfile
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       redis:
         condition: service_healthy
@@ -69,8 +69,9 @@ services:
       context: .
       dockerfile: ./services/embed-worker/Dockerfile
     environment:
-      - REDIS_URL=redis://redis:6379
-      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
     depends_on:
       redis:
         condition: service_healthy

@@ -1,196 +1,158 @@
 """
-Embed Worker - Celery worker for chunking and embedding generation.
-
-Consumes embed_queue, chunks documents, generates embeddings, stores in Qdrant.
+Embed Worker - Creates embeddings using PyTorch and stores in Qdrant.
 """
-
 import os
 import sys
-from typing import Any
-
-from celery import Celery
+from typing import List
 import torch
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
+from qdrant_client.models import Distance, PointStruct, VectorParams
+from redis import Redis
+from rq import Queue, Worker
 
-# Add parent dirs to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+# Add parent paths for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# For Docker environment support as well
+sys.path.insert(0, "/app")
 
-from lib.canonical import compute_integrity, sha256_hex, jcs_canonical_bytes
-from lib.normalize import l2_normalize
+from lib import (
+    compute_chunk_id,
+    get_ledger,
+    hash_canonical_without_integrity
+)
+from schemas import ChunkEmbeddingV1, Chunker, Embedding, Provenance
 
+# Configuration from environment
+EMBEDDER_MODEL_ID = os.environ.get("EMBEDDER_MODEL_ID", "text-embedder-v1")
+CHUNKER_VERSION = os.environ.get("CHUNKER_VERSION", "chunk.v1")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+QDRANT_HOST = os.environ.get("QDRANT_HOST", "qdrant") # Default to 'qdrant' for Docker, can be overridden to 'localhost'
+QDRANT_PORT = int(os.environ.get("QDRANT_PORT", "6333"))
+COLLECTION_NAME = "document_chunks"
+EMBEDDING_DIM = 768
 
-# Celery configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+redis_conn = Redis.from_url(REDIS_URL)
+qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
-app = Celery("embed-worker", broker=REDIS_URL, backend=REDIS_URL)
+# Ensure collection exists
+try:
+    qdrant_client.get_collection(COLLECTION_NAME)
+except Exception:
+    qdrant_client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE)
+    )
 
-# Pinned versions for determinism
-CHUNKER_VERSION = "chunk.v1"
-EMBEDDER_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+# Mock weights hash (in production, compute from actual model weights)
+WEIGHTS_HASH = "sha256:mock_weights_hash_for_scaffolding"
 
-# Qdrant client
-qdrant: QdrantClient | None = None
+def l2_normalize(x: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
+    """L2 normalize a tensor along the last dimension."""
+    return x / torch.clamp(torch.norm(x, p=2, dim=-1, keepdim=True), min=eps)
 
-
-def get_qdrant() -> QdrantClient:
-    """Get or create Qdrant client."""
-    global qdrant
-    if qdrant is None:
-        qdrant = QdrantClient(url=QDRANT_URL)
-        # Ensure collection exists
-        try:
-            qdrant.get_collection("chunks")
-        except Exception:
-            qdrant.create_collection(
-                collection_name="chunks",
-                vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE)
-            )
-    return qdrant
-
-
-def chunk_document(content: dict, max_tokens: int = 400, overlap: int = 60) -> list[dict]:
+def get_embedding(text: str) -> List[float]:
     """
-    Deterministically chunk document content.
+    Generate embedding for text using PyTorch model.
     
-    Returns list of chunks with block references.
+    NOTE: This is a mock implementation.
+    Replace with actual model inference:
+    
+    from transformers import AutoTokenizer, AutoModel
+    tokenizer = AutoTokenizer.from_pretrained(EMBEDDER_MODEL_ID)
+    model = AutoModel.from_pretrained(EMBEDDER_MODEL_ID)
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    outputs = model(**inputs)
+    embedding = outputs.last_hidden_state.mean(dim=1)
     """
-    chunks = []
-    
-    for page in content.get("pages", []):
-        page_idx = page["page_index"]
-        current_text = ""
-        current_refs = []
-        
-        for block_idx, block in enumerate(page.get("blocks", [])):
-            if block.get("type") == "text" and block.get("text"):
-                text = block["text"]
-                ref = f"p{page_idx}:b{block_idx}"
-                
-                # Simple chunking by block (in production: use tokenizer)
-                if len(current_text) + len(text) > max_tokens * 4:  # Approx char count
-                    if current_text:
-                        chunks.append({
-                            "text": current_text.strip(),
-                            "refs": current_refs
-                        })
-                    current_text = text[-overlap * 4:] if overlap else ""
-                    current_refs = [ref]
-                else:
-                    current_text += " " + text
-                    current_refs.append(ref)
-        
-        if current_text.strip():
-            chunks.append({
-                "text": current_text.strip(),
-                "refs": current_refs
-            })
-    
-    return chunks
-
-
-def generate_embedding(text: str) -> torch.Tensor:
-    """
-    Generate embedding for text using the pinned model.
-    
-    In production: load actual model and tokenizer.
-    """
-    # Placeholder: Random embedding (replace with actual model inference)
-    # from transformers import AutoTokenizer, AutoModel
-    # tokenizer = AutoTokenizer.from_pretrained(EMBEDDER_MODEL_ID)
-    # model = AutoModel.from_pretrained(EMBEDDER_MODEL_ID)
-    # inputs = tokenizer(text, return_tensors="pt", truncation=True)
-    # outputs = model(**inputs)
-    # embedding = outputs.last_hidden_state.mean(dim=1)
-    
-    torch.manual_seed(hash(text) % (2**32))  # Deterministic for demo
+    # Mock: Generate deterministic pseudo-embedding based on text hash
+    torch.manual_seed(hash(text) % (2**32))
     embedding = torch.randn(EMBEDDING_DIM)
+    embedding = l2_normalize(embedding)
     
-    return l2_normalize(embedding)
+    return embedding.tolist()
 
-
-@app.task(name="embed_chunks")
-def embed_chunks(normalized_doc: dict) -> list[dict]:
+def embed_chunk(job_payload: dict) -> dict:
     """
-    Chunk and embed a normalized document.
+    Create embedding for a document chunk and store in Qdrant.
     
     Args:
-        normalized_doc: Document in doc.normalized.v1 format
+        job_payload: Contains doc_id, chunk_index, chunk_text, source_block_refs
     
     Returns:
-        List of chunk embeddings in chunk.embedding.v1 format
+        Embedding metadata for confirmation
     """
-    doc_id = normalized_doc["doc_id"]
-    content = normalized_doc["content"]
-    prev_hash = normalized_doc["integrity"]["sha256_canonical"]
+    doc_id = job_payload["doc_id"]
+    chunk_index = job_payload["chunk_index"]
+    chunk_text = job_payload["chunk_text"]
+    source_block_refs = job_payload.get("source_block_refs", [])
+    bundle_id = job_payload["bundle_id"]
     
-    chunks = chunk_document(content)
-    results = []
+    # Compute chunk ID
+    chunk_id = compute_chunk_id(doc_id, chunk_index, chunk_text)
     
-    client = get_qdrant()
-    points = []
+    # Generate embedding
+    vector = get_embedding(chunk_text)
     
-    for chunk in chunks:
-        # Generate chunk ID from content
-        chunk_content_hash = sha256_hex(jcs_canonical_bytes(chunk))
-        chunk_id = f"sha256:{chunk_content_hash}"
-        
-        # Generate embedding
-        embedding = generate_embedding(chunk["text"])
-        vector = embedding.tolist()
-        
-        # Build chunk embedding record
-        chunk_embedding = {
-            "schema": "chunk.embedding.v1",
+    # Build chunk embedding record
+    chunk_embedding = ChunkEmbeddingV1(
+        doc_id=doc_id,
+        chunk_id=chunk_id,
+        chunk_text=chunk_text,
+        chunker=Chunker(version=CHUNKER_VERSION),
+        embedding=Embedding(
+            framework="pytorch",
+            model_id=EMBEDDER_MODEL_ID,
+            weights_hash=WEIGHTS_HASH,
+            dim=EMBEDDING_DIM,
+            normalization="l2",
+            vector=vector
+        ),
+        provenance=Provenance(source_block_refs=source_block_refs)
+    )
+    
+    # Convert to dict for hashing
+    chunk_dict = chunk_embedding.model_dump(by_alias=True, exclude_none=True)
+    
+    # Compute integrity hash
+    sha256_canonical = hash_canonical_without_integrity(chunk_dict)
+    
+    # Store in Qdrant
+    point = PointStruct(
+        id=chunk_id.replace("sha256:", "")[:32],  # Qdrant needs shorter IDs
+        vector=vector,
+        payload={
             "doc_id": doc_id,
             "chunk_id": chunk_id,
-            "chunker": {
-                "version": CHUNKER_VERSION,
-                "method": "block+window",
-                "params": {"max_tokens": 400, "overlap": 60}
-            },
-            "embedding": {
-                "framework": "pytorch",
-                "model_id": EMBEDDER_MODEL_ID,
-                "weights_hash": "sha256:" + "0" * 64,  # TODO: Compute from actual weights
-                "dim": EMBEDDING_DIM,
-                "normalization": "l2",
-                "vector": vector
-            },
-            "provenance": {
-                "source_block_refs": chunk["refs"]
-            }
+            "chunk_text": chunk_text[:500],  # Truncate for storage
+            "source_block_refs": source_block_refs
         }
-        
-        # Compute integrity
-        chunk_embedding = compute_integrity(chunk_embedding, prev_hash)
-        prev_hash = chunk_embedding["integrity"]["sha256_canonical"]
-        
-        results.append(chunk_embedding)
-        
-        # Prepare for Qdrant
-        points.append(PointStruct(
-            id=chunk_content_hash[:32],  # Use first 32 chars as ID
-            vector=vector,
-            payload={
-                "doc_id": doc_id,
-                "chunk_id": chunk_id,
-                "text": chunk["text"]
-            }
-        ))
+    )
+    qdrant_client.upsert(collection_name=COLLECTION_NAME, points=[point])
     
-    # Upsert to Qdrant
-    if points:
-        client.upsert(collection_name="chunks", points=points)
+    # Append to ledger
+    ledger = get_ledger()
+    ledger_record = {
+        "event": "chunk.embedding.v1",
+        "bundle_id": bundle_id,
+        "doc_id": doc_id,
+        "chunk_id": chunk_id,
+        "chunk_index": chunk_index,
+        "embedder_model_id": EMBEDDER_MODEL_ID,
+        "weights_hash": WEIGHTS_HASH,
+        "content_hash": sha256_canonical
+    }
+    ledger.append(ledger_record)
     
-    # TODO: Write to ledger
-    # for record in results:
-    #     ledger.append(record)
-    
-    return results
-
+    return {
+        "status": "embedded",
+        "chunk_id": chunk_id,
+        "vector_dim": EMBEDDING_DIM
+    }
 
 if __name__ == "__main__":
-    app.start()
+    # Run as RQ worker
+    worker = Worker(
+        queues=[Queue("embed_queue", connection=redis_conn)],
+        connection=redis_conn
+    )
+    worker.work()

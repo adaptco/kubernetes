@@ -34,16 +34,23 @@ def sha256_hex(data: bytes) -> str:
 def hash_canonical_without_integrity(payload: dict[str, Any]) -> str:
     """
     Compute canonical hash of a payload, excluding the 'integrity' field.
-    
-    This enables fail-closed re-derivable hashes:
-    1. Remove 'integrity' field
-    2. Canonicalize remaining payload
-    3. Compute SHA256
-    4. Inject hash back into 'integrity.sha256_canonical'
     """
     tmp = dict(payload)
     tmp.pop("integrity", None)
     return sha256_hex(jcs_canonical_bytes(tmp))
+
+
+def compute_chunk_id(doc_id: str, chunk_index: int, chunk_text: str) -> str:
+    """
+    Generate a deterministic chunk ID based on document ID, index, and text.
+    Returns a SHA256 hash string prefixed with 'sha256:'.
+    """
+    payload = {
+        "doc_id": doc_id,
+        "chunk_index": chunk_index,
+        "chunk_text": chunk_text
+    }
+    return f"sha256:{sha256_hex(jcs_canonical_bytes(payload))}"
 
 
 def compute_integrity(payload: dict[str, Any], prev_ledger_hash: str | None = None) -> dict[str, Any]:

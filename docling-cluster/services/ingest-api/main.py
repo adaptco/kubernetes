@@ -10,8 +10,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from rq import Queue
 import redis
 
 
@@ -21,9 +20,10 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Redis connection (configured via env vars in production)
-REDIS_URL = "redis://localhost:6379"
-redis_client: redis.Redis | None = None
+# Redis connection
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+redis_conn = redis.from_url(REDIS_URL)
+parse_queue = Queue("parse_queue", connection=redis_conn)
 
 
 class IngestResponse(BaseModel):
@@ -40,29 +40,14 @@ class HealthResponse(BaseModel):
     redis: str
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize Redis connection on startup."""
-    global redis_client
-    try:
-        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-        redis_client.ping()
-    except redis.ConnectionError:
-        print("WARNING: Redis not available. Queue operations will fail.")
-        redis_client = None
-
-
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint for Kubernetes probes."""
-    redis_status = "connected"
-    if redis_client is None:
-        redis_status = "disconnected"
-    else:
-        try:
-            redis_client.ping()
-        except redis.ConnectionError:
-            redis_status = "error"
+    try:
+        redis_conn.ping()
+        redis_status = "connected"
+    except Exception:
+        redis_status = "error"
     
     return HealthResponse(status="ok", redis=redis_status)
 
@@ -74,23 +59,15 @@ async def ingest_document(
 ):
     """
     Ingest a document into the processing pipeline.
-    
-    1. Generate bundle_id and doc_id from content hash
-    2. Store file temporarily
-    3. Publish parse job to queue
     """
-    if redis_client is None:
-        raise HTTPException(status_code=503, detail="Queue service unavailable")
-    
     # Read file content
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
     
-    # Generate deterministic IDs (enables replay testing)
+    # Generate deterministic IDs
     content_hash = hashlib.sha256(content).hexdigest()
     doc_id = f"sha256:{content_hash}"
-    # Deterministic bundle_id: hash of doc_id + filename for replay determinism
     bundle_id = f"bundle:{hashlib.sha256((doc_id + (file.filename or '')).encode()).hexdigest()[:16]}"
     
     # Prepare job payload
@@ -99,17 +76,14 @@ async def ingest_document(
         "bundle_id": bundle_id,
         "doc_id": doc_id,
         "filename": file.filename,
-        "content_type": file.content_type or "application/octet-stream",
+        "content_type": file.filename or "application/octet-stream", # Using filename as fallback content type for mock
         "size_bytes": len(content),
         "metadata": metadata,
         "received_at": now,
     }
     
-    # Publish to parse queue
-    redis_client.lpush("parse_queue", str(job))
-    
-    # In production: store content to object store / temp file
-    # For now, just acknowledge
+    # Publish to parse queue via RQ
+    parse_queue.enqueue("worker.parse_document", job)
     
     return IngestResponse(
         bundle_id=bundle_id,

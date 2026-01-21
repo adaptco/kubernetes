@@ -13,4 +13,4 @@ COPY . .
 COPY ../../lib /app/lib
 COPY ../../schemas /app/schemas
 
-CMD ["celery", "-A", "worker", "worker", "-l", "info", "-Q", "embed_queue"]
+CMD ["python", "worker.py"]
