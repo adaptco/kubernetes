@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/kind/main/pkg/apis/config/v1alpha4/types.go
 # Kind cluster configuration for local Kubernetes development
 # Usage: kind create cluster --config=kind-cluster.yaml
 
