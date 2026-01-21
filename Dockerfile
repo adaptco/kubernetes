@@ -25,4 +25,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # NOTE: Run docker build from the parent directory (Downloads) to include package.json
 # docker build -f Qube/Dockerfile -t qube-agent .
-CMD [ "node", "QubeApi.js" ]
+CMD [ "node", "Qube/QubeApi.js" ]
