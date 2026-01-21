@@ -91,16 +91,25 @@ def parse_document(job: dict) -> dict:
     prev_hash = None
     normalized_doc = compute_integrity(normalized_doc, prev_hash)
     
-    # Publish to embed_queue (chunks would normally be extracted here)
-    # For now, passing doc as single chunk job for simplicity in this bridge
-    chunk_job = {
-        "bundle_id": bundle_id,
-        "doc_id": doc_id,
-        "chunk_index": 0,
-        "chunk_text": parsed_content["pages"][0]["blocks"][0]["text"],
-        "source_block_refs": ["p0:b0"]
-    }
-    embed_queue.enqueue("worker.embed_chunk", chunk_job)
+    # 4. Extract and batch chunks for embedding
+    # In this bridge, we treat each block as a potential chunk
+    chunks = []
+    chunk_idx = 0
+    for page in parsed_content["pages"]:
+        for i, block in enumerate(page["blocks"]):
+            if block.get("text"):
+                chunks.append({
+                    "bundle_id": bundle_id,
+                    "doc_id": doc_id,
+                    "chunk_index": chunk_idx,
+                    "chunk_text": block["text"],
+                    "source_block_refs": [f"p{page['page_index']}:b{i}"]
+                })
+                chunk_idx += 1
+    
+    # Publish batch to embed_queue
+    if chunks:
+        embed_queue.enqueue("worker.embed_batch", chunks)
     
     return normalized_doc
 

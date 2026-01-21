@@ -1,10 +1,8 @@
 """
 Embed Worker - Creates embeddings using PyTorch (Batch Mode) and stores in Qdrant.
-Includes Sovereign Wallet Proxy for batch signing.
 """
 import os
 import sys
-import hashlib
 from typing import List, Dict, Any
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -19,8 +17,7 @@ sys.path.insert(0, "/app")
 from lib import (
     compute_chunk_id,
     get_ledger,
-    hash_canonical_without_integrity,
-    jcs_canonical_bytes
+    hash_canonical_without_integrity
 )
 from schemas import ChunkEmbeddingV1, Chunker, Embedding, Provenance
 
@@ -49,20 +46,6 @@ except Exception:
 # Mock weights hash
 WEIGHTS_HASH = "sha256:" + "0" * 64
 
-class WalletProxy:
-    """
-    Sovereign Wallet Proxy scaffold.
-    Enforces 'Saintly Honesty' by signing batch digests.
-    """
-    def __init__(self, key_scaffold: str = "sovereign_key_0xFEEDFACE"):
-        self.key_id = key_scaffold
-
-    def sign_digest(self, digest: str) -> str:
-        """Sign a content digest (mock implementation)."""
-        # In production: interface with a secure enclave or hardware wallet
-        signature = hashlib.sha256(f"{self.key_id}:{digest}".encode()).hexdigest()
-        return f"sig:v1:{signature[:16]}"
-
 class ChunkDataset(Dataset):
     """Simple dataset for batch processing chunks."""
     def __init__(self, texts: List[str]):
@@ -81,39 +64,39 @@ def l2_normalize(x: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
 def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
     """
     Generate embeddings for a batch of texts using PyTorch.
-    Optimized for GPU transitions.
+    Uses DataLoader for streamlined processing.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[Scribe] Hardware acceleration: {device}")
-    
     dataset = ChunkDataset(texts)
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     all_embeddings = []
     
-    # In production: model.to(device)
+    # In production, this loop would move tensors to GPU and call the model
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # model.to(device)
     
+    import hashlib
     for batch in dataloader:
-        # Mock: Generate deterministic pseudo-embeddings for the batch
-        # texts_tensor = tokenizer(batch, ...).to(device)
-        # outputs = model(texts_tensor)
-        
-        # Simulating CUDA processing
-        batch_embeddings = torch.randn(len(batch), EMBEDDING_DIM).to(device)
-        batch_embeddings = l2_normalize(batch_embeddings)
-        all_embeddings.extend(batch_embeddings.cpu().tolist())
+        for text in batch:
+            # Mock: Generate deterministic pseudo-embeddings for each text
+            seed = int(hashlib.sha256(text.encode()).hexdigest(), 16) % (2**32)
+            torch.manual_seed(seed)
+            v = torch.randn(EMBEDDING_DIM)
+            v = l2_normalize(v)
+            all_embeddings.append(v.tolist())
         
     return all_embeddings
 
 def embed_batch(job_payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Create embeddings for a list of document chunks and store in Qdrant as a batch.
-    Integrated with Sovereign Wallet Proxy for batch-level attestation.
+    
+    Args:
+        job_payloads: List of dicts, each containing doc_id, chunk_index, chunk_text, etc.
     """
     if not job_payloads:
         return {"status": "empty_batch", "count": 0}
 
-    wallet = WalletProxy()
     print(f"[Scribe] Processing batch of {len(job_payloads)} chunks...")
     
     texts = [p["chunk_text"] for p in job_payloads]
@@ -122,9 +105,9 @@ def embed_batch(job_payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
     vectors = get_embeddings_batch(texts)
     
     points = []
+    chunk_records = []
     ledger_records = []
-    batch_digest_data = []
-
+    
     for i, payload in enumerate(job_payloads):
         doc_id = payload["doc_id"]
         chunk_index = payload["chunk_index"]
@@ -169,9 +152,6 @@ def embed_batch(job_payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
             }
         ))
         
-        # Accumulate for batch signing
-        batch_digest_data.append(sha256_canonical)
-        
         # Prepare Ledger Record
         ledger_records.append({
             "event": "chunk.embedding.v1",
@@ -184,18 +164,12 @@ def embed_batch(job_payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
             "content_hash": sha256_canonical
         })
 
-    # 2. Sovereign Signing (The "Constitutional Braid" anchor)
-    batch_digest = hashlib.sha256("".join(batch_digest_data).encode()).hexdigest()
-    batch_signature = wallet.sign_digest(batch_digest)
-    print(f"[Scribe] Batch Authenticated. Signature: {batch_signature}")
-
-    # 3. Batch Storage: Qdrant
+    # 2. Batch Storage: Qdrant
     qdrant_client.upsert(collection_name=COLLECTION_NAME, points=points)
     
-    # 4. Batch Logging: Ledger
+    # 3. Batch Logging: Ledger
     ledger = get_ledger()
     for record in ledger_records:
-        record["batch_signature"] = batch_signature
         ledger.append(record)
         
     print(f"[Scribe] Batch complete. {len(job_payloads)} chunks committed to Sovereign Vault.")
@@ -203,7 +177,6 @@ def embed_batch(job_payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "status": "batch_embedded",
         "count": len(job_payloads),
-        "batch_signature": batch_signature,
         "vector_dim": EMBEDDING_DIM
     }
 
