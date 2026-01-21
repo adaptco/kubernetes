@@ -9,9 +9,9 @@ A deterministic document processing pipeline:
 # Start all services
 docker-compose up --build
 
-# Ingest a document
-curl -X POST http://localhost:8000/ingest \
-  -F "file=@document.pdf"
+# Or, if using Kubernetes (kind)
+kind create cluster --config kind-cluster.yaml
+kubectl apply -f k8s/
 ```
 
 ## Services
