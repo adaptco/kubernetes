@@ -1,0 +1,40 @@
+# Kind cluster configuration for local Kubernetes development
+# Usage: kind create cluster --config=kind-cluster.yaml
+
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: docling-cluster
+
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # HTTP ingress
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      # HTTPS ingress
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+      # NodePort range for services
+      - containerPort: 30000
+        hostPort: 30000
+        protocol: TCP
+      - containerPort: 30001
+        hostPort: 30001
+        protocol: TCP
+
+  - role: worker
+  - role: worker
+
+# Container runtime settings
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
+      endpoint = ["http://kind-registry:5000"]
