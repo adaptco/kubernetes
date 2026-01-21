@@ -1,6 +1,7 @@
 """Core library for Docling normalization cluster."""
 
 from .canonical import (
+    jcs_canonical_bytes,
     hash_canonical_without_integrity,
     compute_integrity,
     verify_integrity,
@@ -18,6 +19,7 @@ from .ledger import (
 )
 
 __all__ = [
+    "jcs_canonical_bytes",
     "hash_canonical_without_integrity",
     "compute_integrity",
     "verify_integrity",
